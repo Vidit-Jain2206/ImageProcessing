@@ -1,4 +1,4 @@
-import type { ErrorRequestHandler, Request, Response } from "express";
+import type { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { prismaClient } from "db";
 import { csvProcessingQueue } from "queue";
@@ -16,7 +16,9 @@ export const uploadFile = async (req: Request, res: Response) => {
     // add the job to queue
 
     const requestId = uuidv4();
-    const s3url: string = await uploadFileToS3(file.buffer);
+    const key = `${requestId}/${file.filename}`;
+    const s3url: string | undefined = await uploadFileToS3(file.buffer, key);
+    if (!s3url) throw new Error("Unable to upload file to s3");
     const data = await prismaClient.request.create({
       data: {
         csvFile: s3url,

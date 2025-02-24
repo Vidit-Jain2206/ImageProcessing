@@ -10,11 +10,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.750.0",
     "cors": "^2.8.5",
     "db": "*",
-    "queue": "*",
     "express": "^4.21.2",
     "multer": "^1.4.5-lts.1",
+    "queue": "*",
     "shared": "*",
     "uuid": "^11.1.0"
   },
