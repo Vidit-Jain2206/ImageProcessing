@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 import { prismaClient } from "db";
 import { csvProcessingQueue } from "queue";
 import { uploadFileToS3 } from "../utils/awsS3";
-import { request } from "http";
 
 export const uploadFile = async (req: Request, res: Response) => {
   try {
@@ -47,4 +46,23 @@ export const uploadFile = async (req: Request, res: Response) => {
     res.status(error.statusCode).json({ message: error.message });
   }
 };
-export const getFileStatus = (req: Request, res: Response) => {};
+export const getFileStatus = async (req: Request, res: Response) => {
+  try {
+    const requestId: string = req.query.requestId as string;
+    if (!requestId) throw new Error("Request is needed");
+
+    const data = await prismaClient.request.findUnique({
+      where: { requestId: requestId },
+    });
+
+    if (!data) {
+      throw new Error("Invalid RequestID");
+    }
+    res.status(200).json({
+      message: "Status fetched successfully",
+      data: { status: data.status, requestId: data.requestId },
+    });
+  } catch (error: any) {
+    res.status(error.statusCode).json({ message: error.message });
+  }
+};
