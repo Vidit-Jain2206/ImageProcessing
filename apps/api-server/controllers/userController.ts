@@ -15,7 +15,7 @@ export const uploadFile = async (req: Request, res: Response) => {
     // upload the data to database with status pending
     // add the job to queue
 
-    const requestId = uuidv4();
+    const requestId: string = uuidv4();
     const key = `${requestId}/${file.filename}`;
     const s3url: string | undefined = await uploadFileToS3(file.buffer, key);
     if (!s3url) throw new Error("Unable to upload file to s3");
