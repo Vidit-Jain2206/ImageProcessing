@@ -62,6 +62,8 @@ const processCsv = async (job: Job) => {
             await imageProcessingQueue.add("process-image", {
               imageId,
               inputUrl,
+              requestId,
+              productId,
             });
           }
           await prismaClient.product.create({

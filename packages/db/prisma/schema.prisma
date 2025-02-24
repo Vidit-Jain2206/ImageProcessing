@@ -12,7 +12,7 @@ model Request {
   csvFile   String
   requestId String   @unique
   status    RequestStatus @default(EXTRACTION_IN_PROGRESS)
-
+  processedImages Int      @default(0)
   products  Product[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
