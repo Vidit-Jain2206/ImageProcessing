@@ -11,7 +11,7 @@ model Request {
   id        String   @id @default(uuid())
   csvFile   String
   requestId String   @unique
-  status    RequestStatus @default(PENDING)
+  status    RequestStatus @default(EXTRACTION_IN_PROGRESS)
 
   products  Product[]
   createdAt DateTime @default(now())
@@ -47,8 +47,9 @@ model Image {
 }
 
 enum RequestStatus {
-  PENDING
+  EXTRACTION_IN_PROGRESS
   EXTRACTION_COMPLETED
+  IMAGE_PROCESSING_IN_PROGRESS
   IMAGE_PROCESSING_COMPLETED
   FAILED
 }

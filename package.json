@@ -25,6 +25,7 @@
     "packages/*"
   ],
   "dependencies": {
-    "@prisma/client": "^6.4.1"
+    "@prisma/client": "^6.4.1",
+    "bullmq": "^5.41.5"
   }
 }
