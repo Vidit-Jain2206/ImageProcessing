@@ -54,6 +54,8 @@ const processCsv = async (job: Job) => {
           data: { status: RequestStatus.EXTRACTION_COMPLETED },
         });
 
+        let imagesToBeAdded = [];
+
         for (const row of csvData) {
           const { productId, inputFile } = row;
           console.log("proceesing for", productId);
@@ -106,7 +108,7 @@ const processCsv = async (job: Job) => {
             });
 
             imageId = newImage.id;
-            await imageProcessingQueue.add("process-image", {
+            imagesToBeAdded.push({
               imageId,
               inputUrl: inputFile,
               requestId,
@@ -121,6 +123,12 @@ const processCsv = async (job: Job) => {
             },
           });
         }
+
+        const imagePromises = imagesToBeAdded.map((imageData) =>
+          imageProcessingQueue.add("process-image", imageData)
+        );
+
+        await Promise.all(imagePromises);
 
         // Update the status of the request
         await prismaClient.request.update({

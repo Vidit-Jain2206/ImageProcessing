@@ -5,25 +5,24 @@ import sharp from "sharp";
 import AWS from "aws-sdk";
 import { ImageStatus, RequestStatus } from "@prisma/client";
 import { createWorker } from "queue";
-
-const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || "";
+import dotenv from "dotenv";
+dotenv.config();
+const S3_BUCKET_NAME = process.env.S3_BUCKET || "";
 const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
+  accessKeyId: process.env.ACCESS_KEY,
+  secretAccessKey: process.env.SECRET_ACCESS_KEY,
+  region: process.env.REGION,
 });
 
 // Function to process image
 const processImage = async (job: Job) => {
-  const { imageId, imageUrl, requestId, productId } = job.data;
-  await prismaClient.request.update({
-    where: { requestId: requestId },
-    data: { status: RequestStatus.IMAGE_PROCESSING_IN_PROGRESS },
-  });
-  try {
-    console.log(`Processing image: ${imageUrl}`);
+  let { imageId, inputUrl, requestId, productId } = job.data;
 
-    const response = await axios.get(imageUrl, { responseType: "arraybuffer" });
+  try {
+    inputUrl = "https://jpeg.org/images/jpeg-home.jpg";
+    console.log(`Processing image: ${inputUrl}`);
+
+    const response = await axios.get(inputUrl, { responseType: "arraybuffer" });
     const buffer = Buffer.from(response.data);
 
     const processedBuffer = await sharp(buffer)
@@ -31,25 +30,25 @@ const processImage = async (job: Job) => {
       .jpeg({ quality: 80 })
       .toBuffer();
 
-    const key = `${imageId}/processed_output.jpeg`;
+    const outputKey = `images/${imageId}/processed_output.jpeg`;
 
     await s3
       .upload({
         Bucket: S3_BUCKET_NAME,
-        Key: key,
+        Key: outputKey,
         Body: processedBuffer,
-        ContentType: "image/jpeg",
+        ContentType: "image/jpg",
       })
       .promise();
 
     await prismaClient.image.update({
       where: { id: imageId },
-      data: { status: ImageStatus.PROCESSED, outputUrl: key },
+      data: { status: ImageStatus.PROCESSED, outputUrl: outputKey },
     });
 
     console.log(`Image ${imageId} processed successfully.`);
 
-    await checkRequestCompletion(requestId, productId);
+    await checkRequestCompletion(requestId, imageId);
   } catch (error: any) {
     console.error(`Error processing image ${imageId}: ${error.message}`);
 
@@ -60,25 +59,26 @@ const processImage = async (job: Job) => {
   }
 };
 
-const checkRequestCompletion = async (requestId: string, productId: string) => {
-  const totalImages = await prismaClient.productImageMapping.count({
-    where: { productId },
-  });
-
-  const processedImages = await prismaClient.productImageMapping.count({
-    where: {
-      productId,
-      image: { status: ImageStatus.PROCESSED },
+const checkRequestCompletion = async (requestId: string, imageId: string) => {
+  const totalImages = await prismaClient.productImageMapping.findMany({
+    where: { imageId },
+    select: {
+      image: true,
     },
   });
+  console.log(totalImages);
+
+  const processedImages = totalImages.filter(
+    (image) => image.image.status === ImageStatus.PROCESSED
+  );
 
   await prismaClient.request.update({
-    where: { id: requestId },
-    data: { processedImages },
+    where: { requestId: requestId },
+    data: { processedImages: processedImages.length },
   });
-  if (processedImages === totalImages) {
+  if (processedImages.length === totalImages.length) {
     await prismaClient.request.update({
-      where: { id: requestId },
+      where: { requestId: requestId },
       data: { status: RequestStatus.IMAGE_PROCESSING_COMPLETED },
     });
     console.log(`Request ${requestId} is COMPLETED.`);
