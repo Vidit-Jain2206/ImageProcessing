@@ -11,29 +11,36 @@ model Request {
   id        String   @id @default(uuid())
   csvFile   String
   requestId String   @unique
-  status    RequestStatus @default(EXTRACTION_IN_PROGRESS)
   processedImages Int      @default(0)
-  products  Product[]
+  status    RequestStatus @default(EXTRACTION_IN_PROGRESS)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  products  ProductRequestMapping[]
 }
 
 model Product {
+  id        String   @id @default(uuid()) 
+  productId String   @unique 
+  createdAt DateTime @default(now())
+  images    ProductImageMapping[]
+  requests  ProductRequestMapping[]
+}
+model ProductRequestMapping {
   id        String   @id @default(uuid())
-  request   Request  @relation(fields: [requestId], references: [requestId], onDelete: Cascade)
   requestId String
-  productId String   @unique
+  request   Request  @relation(fields: [requestId], references: [requestId], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [productId], onDelete: Cascade)
 
-  productImages ProductImageMapping[]
-  createdAt     DateTime @default(now())
+  @@unique([requestId, productId])
 }
 
 model ProductImageMapping {
   id        String   @id @default(uuid())
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId String
-  image     Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [productId], onDelete: Cascade)
   imageId   String
+  image     Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
 }
 
 model Image {
@@ -41,9 +48,8 @@ model Image {
   inputUrl  String   @unique
   status    ImageStatus @default(PENDING)
   outputUrl String?
-
-  productImages ProductImageMapping[]
   createdAt     DateTime @default(now())
+  productImages ProductImageMapping[]
 }
 
 enum RequestStatus {

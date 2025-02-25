@@ -1,7 +1,6 @@
 {
   "name": "extraction-service",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch worker.ts",
@@ -12,7 +11,9 @@
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.1692.0",
+    "axios": "^1.7.9",
     "csv-parser": "^3.2.0",
     "queue": "*"
-  }
+  },
+  "description": ""
 }

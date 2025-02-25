@@ -4,6 +4,7 @@ import axios from "axios";
 import sharp from "sharp";
 import AWS from "aws-sdk";
 import { ImageStatus, RequestStatus } from "@prisma/client";
+import { createWorker } from "queue";
 
 const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || "";
 const s3 = new AWS.S3({
@@ -16,7 +17,7 @@ const s3 = new AWS.S3({
 const processImage = async (job: Job) => {
   const { imageId, imageUrl, requestId, productId } = job.data;
   await prismaClient.request.update({
-    where: { id: requestId },
+    where: { requestId: requestId },
     data: { status: RequestStatus.IMAGE_PROCESSING_IN_PROGRESS },
   });
   try {
@@ -84,7 +85,7 @@ const checkRequestCompletion = async (requestId: string, productId: string) => {
   }
 };
 
-const worker = new Worker("image-processing-queue", processImage);
+const worker = createWorker("image-processing-queue", processImage);
 
 worker.on("completed", (job: Job) => {
   console.log(`Job ${job.id} completed successfully`);
@@ -92,4 +93,8 @@ worker.on("completed", (job: Job) => {
 
 worker.on("failed", (job: any, err: Error) => {
   console.error(`Job ${job.id} failed with error: ${err.message}`);
+});
+
+worker.on("error", (err: any) => {
+  console.error(`Worker error: ${err.message}`);
 });

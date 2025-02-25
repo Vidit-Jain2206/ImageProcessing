@@ -2,40 +2,52 @@ import { Job } from "bullmq";
 import { createWorker } from "queue"; // Shared queue connection
 import { prismaClient } from "db"; // Shared DB connection
 import AWS from "aws-sdk";
-import * as csv from "csv-parser"; // CSV parser library
+import csv from "csv-parser"; // CSV parser library
 import { Readable } from "stream";
 import { imageProcessingQueue } from "queue";
-import { RequestStatus } from "@prisma/client";
-import type { GetObjectRequest } from "aws-sdk/clients/s3";
+import { ImageStatus, RequestStatus } from "@prisma/client";
+import dotenv from "dotenv";
+dotenv.config();
+import axios from "axios";
 
 // Initialize AWS S3 client
 const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
+  accessKeyId: process.env.ACCESS_KEY,
+  secretAccessKey: process.env.SECRET_ACCESS_KEY,
+  region: process.env.REGION,
 });
 
-const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || "";
+const S3_BUCKET_NAME = process.env.S3_BUCKET || "";
+const BUCKET_URL = `${process.env.BUCKET_URL}${S3_BUCKET_NAME}`;
 
 const processCsv = async (job: Job) => {
+  console.log(`Job Started...`);
   const { requestId, csvFile } = job.data;
-
   try {
-    const arr = csvFile.split(`/${S3_BUCKET_NAME}`);
-
-    const s3Params: GetObjectRequest = {
+    const arr = csvFile.split(`${BUCKET_URL}/`);
+    const signedUrl = await s3.getSignedUrlPromise("getObject", {
       Bucket: S3_BUCKET_NAME,
       Key: arr[1],
-    };
-    const s3Object = await s3.getObject(s3Params).promise();
-    const csvData: { productId: string; inputUrl: string }[] = [];
-    const readableStream = Readable.from(s3Object.Body as Buffer);
+      Expires: 300, // URL expires in 5 minutes
+    });
+    const response = await axios.get(signedUrl, {
+      responseType: "arraybuffer",
+    });
+    const csvBuffer = Buffer.from(response.data);
 
-    readableStream
+    const csvData: { productId: string; inputFile: string }[] = [];
+    let lastProductId = "";
+    const readableStream = Readable.from(csvBuffer)
       .pipe(csv())
-      .on("data", (row: { productId: string; inputUrl: string }) =>
-        csvData.push(row)
-      )
+      .on("data", (row: { productId: string; inputFile: string }) => {
+        let productId = row.productId;
+        const inputFile = row.inputFile;
+        if (productId !== "") lastProductId = productId;
+        if (productId === "") {
+          productId = lastProductId;
+        }
+        csvData.push({ productId, inputFile: inputFile });
+      })
       .on("end", async () => {
         await prismaClient.request.update({
           where: { requestId },
@@ -43,10 +55,41 @@ const processCsv = async (job: Job) => {
         });
 
         for (const row of csvData) {
-          const { productId, inputUrl } = row;
+          const { productId, inputFile } = row;
+          console.log("proceesing for", productId);
+          const existingProduct = await prismaClient.product.findUnique({
+            where: {
+              productId: productId,
+            },
+          });
+          console.log(productId, existingProduct);
+          if (!existingProduct) {
+            await prismaClient.product.create({
+              data: {
+                productId,
+              },
+            });
+          }
+
+          const existingProductrequesTMapping =
+            await prismaClient.productRequestMapping.findFirst({
+              where: {
+                requestId,
+                productId,
+              },
+            });
+
+          if (!existingProductrequesTMapping) {
+            await prismaClient.productRequestMapping.create({
+              data: {
+                requestId,
+                productId,
+              },
+            });
+          }
 
           const existingImage = await prismaClient.image.findUnique({
-            where: { inputUrl },
+            where: { inputUrl: inputFile },
           });
 
           let imageId: string;
@@ -55,27 +98,26 @@ const processCsv = async (job: Job) => {
             imageId = existingImage.id;
           } else {
             const newImage = await prismaClient.image.create({
-              data: { inputUrl, status: "PENDING", outputUrl: "" },
+              data: {
+                inputUrl: inputFile,
+                status: ImageStatus.PENDING,
+                outputUrl: "",
+              },
             });
 
             imageId = newImage.id;
             await imageProcessingQueue.add("process-image", {
               imageId,
-              inputUrl,
+              inputUrl: inputFile,
               requestId,
               productId,
             });
           }
-          await prismaClient.product.create({
-            data: {
-              requestId,
-              productId,
-            },
-          });
+
           await prismaClient.productImageMapping.create({
             data: {
-              productId,
-              imageId,
+              productId: productId,
+              imageId: imageId,
             },
           });
         }
