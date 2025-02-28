@@ -124,6 +124,14 @@ const processCsv = async (job: Job) => {
           });
         }
 
+        if (imagesToBeAdded.length === 0) {
+          await prismaClient.request.update({
+            where: { requestId },
+            data: { status: RequestStatus.IMAGE_PROCESSING_COMPLETED },
+          });
+          return;
+        }
+
         const imagePromises = imagesToBeAdded.map((imageData) =>
           imageProcessingQueue.add("process-image", imageData)
         );
