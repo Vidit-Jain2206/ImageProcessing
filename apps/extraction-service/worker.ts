@@ -118,6 +118,7 @@ const processCsv = async (job: Job) => {
 
           await prismaClient.productImageMapping.create({
             data: {
+              requestId: requestId,
               productId: productId,
               imageId: imageId,
             },

@@ -16,6 +16,7 @@ model Request {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   products  ProductRequestMapping[]
+  images    ProductImageMapping[]
 }
 
 model Product {
@@ -37,6 +38,8 @@ model ProductRequestMapping {
 
 model ProductImageMapping {
   id        String   @id @default(uuid())
+  requestId String
+  request   Request  @relation(fields: [requestId], references: [requestId], onDelete: Cascade)
   productId String
   product   Product  @relation(fields: [productId], references: [productId], onDelete: Cascade)
   imageId   String

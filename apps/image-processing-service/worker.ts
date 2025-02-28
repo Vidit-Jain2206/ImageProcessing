@@ -61,7 +61,7 @@ const processImage = async (job: Job) => {
 
 const checkRequestCompletion = async (requestId: string, imageId: string) => {
   const totalImages = await prismaClient.productImageMapping.findMany({
-    where: { imageId },
+    where: { requestId: requestId },
     select: {
       image: true,
     },
